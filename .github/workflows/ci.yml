@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  lint-and-import:
+    name: Lint & import check (Python 3.11)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          set -euxo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Syntax check — all Python files
+        run: |
+          set -euxo pipefail
+          python -m py_compile cockpit_core/env_bootstrap.py
+          python -m py_compile cockpit_core/config.py
+          find cockpit_core streamlit_app -name "*.py" | xargs python -m py_compile
+          python -m py_compile verify_jira.py
+          echo "All .py files compile cleanly."
+
+      - name: Import check — cockpit_core package
+        run: |
+          set -euxo pipefail
+          # Bootstrap must not crash without .env files present
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+          from cockpit_core.env_bootstrap import bootstrap, has_jira_credentials, has_ai_credentials
+          bootstrap()  # must not raise even without .env
+          print('env_bootstrap OK')
+
+          from cockpit_core.config import load_config, CockpitConfig
+          print('config OK')
+
+          from cockpit_core.storage.snapshots import list_snapshot_dates, read_issues
+          print('snapshots OK')
+
+          from cockpit_core.productivity.metrics import compute_daily_productivity, build_done_today
+          print('metrics OK')
+
+          from cockpit_core.scoring.priority import score_dataframe
+          print('scoring OK')
+
+          from cockpit_core.duration.engine import compute_issue_durations
+          print('duration OK')
+
+          from cockpit_core.ingest.runner import IngestRunner
+          print('ingest runner OK')
+
+          from cockpit_core.ingest.backfill import BackfillRunner
+          print('backfill OK')
+          "
+
+      - name: Import check — streamlit_app views
+        run: |
+          set -euxo pipefail
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+          # Theme module imports safely without a running Streamlit server
+          from streamlit_app.theme.adapt_theme import COLORS, inject_css, chart_layout
+          print('theme OK')
+          print('All imports passed.')
+          "
+
+      - name: Verify no demo/mock code remains
+        run: |
+          set -euxo pipefail
+          # Hard guard: no demo data generators, no COCKPIT_DEMO_MODE references
+          if grep -rn "demo_data\|generate_demo\|COCKPIT_DEMO_MODE\|DEMO_MODE" \
+               --include="*.py" cockpit_core streamlit_app verify_jira.py; then
+            echo "ERROR: demo / mock references found in source tree"
+            exit 1
+          fi
+          echo "No demo/mock references found."
+
+      - name: Verify requirements completeness
+        run: |
+          set -euxo pipefail
+          # Ensure all packages used in code are declared in requirements.txt
+          python -c "
+          import importlib, sys
+          required = ['requests', 'dotenv', 'pandas', 'pyarrow', 'dateutil',
+                      'anthropic', 'streamlit', 'plotly', 'watchdog']
+          missing = []
+          for pkg in required:
+              try:
+                  importlib.import_module(pkg)
+              except ImportError:
+                  missing.append(pkg)
+          if missing:
+              print('MISSING packages:', missing)
+              sys.exit(1)
+          print('All required packages importable:', required)
+          "
+
+      - name: Verify runtime.txt specifies Python 3.11
+        run: |
+          set -euxo pipefail
+          content=$(cat runtime.txt | tr -d '[:space:]')
+          if [ "$content" != "python-3.11" ]; then
+            echo "runtime.txt must contain exactly 'python-3.11', got: '$content'"
+            exit 1
+          fi
+          echo "runtime.txt OK: $content"
+
+      - name: Verify Streamlit config has no localhost address lock
+        run: |
+          set -euxo pipefail
+          # Check for an ACTIVE (non-comment) address = 127.0.0.1 line
+          if grep -v '^\s*#' .streamlit/config.toml | grep -q 'address.*127\.0\.0\.1'; then
+            echo "ERROR: .streamlit/config.toml sets address=127.0.0.1 which blocks Streamlit Cloud"
+            exit 1
+          fi
+          echo "Streamlit config OK — no active localhost address lock."
+
+      - name: Verify Streamlit entry point exists
+        run: |
+          set -euxo pipefail
+          test -f streamlit_app/main.py
+          echo "streamlit_app/main.py exists."
