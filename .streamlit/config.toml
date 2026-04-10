@@ -1,0 +1,15 @@
+[theme]
+base = "light"
+primaryColor = "#9D4EDD"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F9F7FF"
+textColor = "#1E1B4B"
+font = "sans serif"
+
+[server]
+headless = true
+# address defaults to 0.0.0.0 — required for Streamlit Community Cloud.
+# Do NOT set address = "127.0.0.1" here; that blocks the cloud runtime from binding.
+
+[browser]
+gatherUsageStats = false

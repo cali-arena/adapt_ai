@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Local environment
+.env
+.env.local
+
+# Streamlit secrets (never commit real credentials)
+.streamlit/secrets.toml
+
+# Local data (snapshots, SQLite DB — ephemeral on Streamlit Cloud)
+data/
+
+# Editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
