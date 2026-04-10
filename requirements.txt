@@ -1,17 +1,32 @@
 # ADAPT Engineering Cockpit — Python dependencies
-# Compatible with Streamlit Community Cloud (Python 3.11)
+# Compatible with Streamlit Community Cloud (Python 3.11 — see runtime.txt)
 # Install: pip install -r requirements.txt
+#
+# Pinning policy:
+#   - Lower bounds keep us at known-good APIs.
+#   - Upper bounds are intentionally LOOSE on pyarrow / numpy / pandas so the
+#     resolver always finds a prebuilt wheel for the runtime in use. A tight
+#     pyarrow upper bound (`<20`) previously triggered a source build on
+#     Streamlit Cloud — that needs cmake, which Cloud runners do not have, so
+#     install failed before the app could boot. With a loose upper bound, pip
+#     always lands on a version that ships manylinux wheels for the active
+#     Python interpreter.
 
 # ── Web framework ──────────────────────────────────────────────────────────────
-streamlit>=1.36.0,<2
+streamlit>=1.36.0
 
 # ── Data layer ─────────────────────────────────────────────────────────────────
-pandas>=2.2.0,<3
-pyarrow>=16.0.0,<20
-python-dateutil>=2.9.0,<3
+# numpy: cap only at the unreleased 3.x; allow any 1.x or 2.x wheel.
+numpy>=1.26,<3
+# pandas: stay on the 2.x series; no upper cap so newer 2.x wheels are picked.
+pandas>=2.2.0
+# pyarrow: NO upper bound — must always resolve to a version with a manylinux
+# wheel for the active Python interpreter (avoid the cmake source build path).
+pyarrow>=16.0.0
+python-dateutil>=2.9.0
 
 # ── Charts ─────────────────────────────────────────────────────────────────────
-plotly>=5.22.0,<6
+plotly>=5.22.0
 
 # ── HTTP / Jira API ────────────────────────────────────────────────────────────
 requests>=2.31.0,<3
@@ -23,4 +38,4 @@ anthropic>=0.28.0,<1
 python-dotenv>=1.0.0,<2
 
 # ── Performance (recommended on Streamlit Cloud) ───────────────────────────────
-watchdog>=4.0.0,<5
+watchdog>=4.0.0
